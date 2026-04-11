@@ -23,7 +23,7 @@ jobs:
         run: go mod download
 
       - name: Build
-        run: go build ./cmd
+        run: go build -o /tmp/pulseway ./cmd/main.go
 
-      - name: Vet (catch common mistakes)
+      - name: Vet
         run: go vet ./...
