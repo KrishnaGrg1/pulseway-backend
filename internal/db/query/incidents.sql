@@ -20,3 +20,10 @@ LIMIT 1;
 SELECT * FROM incidents
 WHERE monitor_id = $1
 ORDER BY started_at DESC;
+
+
+-- name: MarkIncidentNotified :exec
+UPDATE incidents
+SET notified = true
+WHERE monitor_id = $1
+AND resolved_at IS NULL;

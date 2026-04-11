@@ -80,6 +80,18 @@ func (q *Queries) ListIncidentsByMonitor(ctx context.Context, monitorID int64) (
 	return items, nil
 }
 
+const markIncidentNotified = `-- name: MarkIncidentNotified :exec
+UPDATE incidents
+SET notified = true
+WHERE monitor_id = $1
+AND resolved_at IS NULL
+`
+
+func (q *Queries) MarkIncidentNotified(ctx context.Context, monitorID int64) error {
+	_, err := q.db.Exec(ctx, markIncidentNotified, monitorID)
+	return err
+}
+
 const resolveIncident = `-- name: ResolveIncident :one
 UPDATE incidents
 SET resolved_at = now()

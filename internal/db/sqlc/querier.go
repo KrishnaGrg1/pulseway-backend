@@ -18,6 +18,8 @@ type Querier interface {
 	DeleteMonitor(ctx context.Context, arg DeleteMonitorParams) error
 	GetActiveIncident(ctx context.Context, monitorID int64) (Incident, error)
 	GetMonitorByID(ctx context.Context, id int64) (Monitor, error)
+	GetMonitorStats(ctx context.Context, userID int64) (GetMonitorStatsRow, error)
+	GetStatsForUser(ctx context.Context, userID int64) (GetStatsForUserRow, error)
 	GetUptimePercentage(ctx context.Context, monitorID int64) (int32, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id int64) (User, error)
@@ -26,6 +28,7 @@ type Querier interface {
 	ListCheckResultsByMonitor(ctx context.Context, monitorID int64) ([]CheckResult, error)
 	ListIncidentsByMonitor(ctx context.Context, monitorID int64) ([]Incident, error)
 	ListMonitorsByUser(ctx context.Context, userID int64) ([]Monitor, error)
+	MarkIncidentNotified(ctx context.Context, monitorID int64) error
 	ResolveIncident(ctx context.Context, monitorID int64) (Incident, error)
 	UpdateMonitor(ctx context.Context, arg UpdateMonitorParams) (Monitor, error)
 }

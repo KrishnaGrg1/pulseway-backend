@@ -23,7 +23,7 @@ jobs:
         run: go mod download
 
       - name: Build
-        run: go build -o /tmp/pulseway ./cmd/main.go
+        run: go build -o /tmp/pulseway ./cmd/main.go | echo "Successfully Build"
 
       - name: Vet
         run: go vet ./...

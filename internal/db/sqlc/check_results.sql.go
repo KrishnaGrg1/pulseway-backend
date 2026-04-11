@@ -43,6 +43,28 @@ func (q *Queries) CreateCheckResult(ctx context.Context, arg CreateCheckResultPa
 	return i, err
 }
 
+const getStatsForUser = `-- name: GetStatsForUser :one
+SELECT
+  COUNT(*) FILTER (WHERE cr.status = 'up') * 100 / NULLIF(COUNT(*), 0) AS uptime_percentage,
+  AVG(cr.latency_ms) AS avg_latency_ms
+FROM check_results cr
+JOIN monitors m ON cr.monitor_id = m.id
+WHERE m.user_id = $1
+AND cr.checked_at > now() - INTERVAL '24 hours'
+`
+
+type GetStatsForUserRow struct {
+	UptimePercentage int32   `json:"uptime_percentage"`
+	AvgLatencyMs     float64 `json:"avg_latency_ms"`
+}
+
+func (q *Queries) GetStatsForUser(ctx context.Context, userID int64) (GetStatsForUserRow, error) {
+	row := q.db.QueryRow(ctx, getStatsForUser, userID)
+	var i GetStatsForUserRow
+	err := row.Scan(&i.UptimePercentage, &i.AvgLatencyMs)
+	return i, err
+}
+
 const getUptimePercentage = `-- name: GetUptimePercentage :one
 SELECT
   COUNT(*) FILTER (WHERE status = 'up') * 100 / COUNT(*) AS uptime_percentage

@@ -9,10 +9,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/KrishnaGrg1/pulseway/internal/alert"
 	"github.com/KrishnaGrg1/pulseway/internal/api"
 	"github.com/KrishnaGrg1/pulseway/internal/config"
 	"github.com/KrishnaGrg1/pulseway/internal/queue"
 	"github.com/KrishnaGrg1/pulseway/internal/scheduler"
+	"github.com/KrishnaGrg1/pulseway/internal/sse"
 	"github.com/KrishnaGrg1/pulseway/internal/store"
 	"github.com/KrishnaGrg1/pulseway/internal/worker"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -46,11 +48,22 @@ func main() {
 	sched := scheduler.New(s, q)
 	go sched.Start(ctx)
 
-	// Start workers
-	w := worker.New(s, q)
+	// After Redis connection
+	hub, err := sse.NewHub(cfg.REDIS_URL)
+	if err != nil {
+		log.Fatal("Cannot connect SSE hub to Redis:", err)
+	}
+	log.Println("SSE hub connected to Redis")
+
+	// Start SSE subscriber
+	go hub.Subscribe(ctx)
+	alerter := alert.NewEmailAlerter(cfg.RESEND_API_KEY)
+	// Pass hub to worker
+	w := worker.New(s, q, hub, alerter)
 	go w.Start(ctx, cfg.WORKER_COUNT)
 
-	router := api.NewRouter(s, cfg)
+	// Pass hub to router
+	router := api.NewRouter(s, cfg, hub)
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.PORT,

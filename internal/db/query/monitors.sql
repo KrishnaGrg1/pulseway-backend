@@ -26,3 +26,11 @@ WHERE id = $1 AND user_id = $2;
 -- name: ListAllActiveMonitors :many
 SELECT * FROM monitors
 WHERE is_active = true;
+
+
+-- name: GetMonitorStats :one
+SELECT
+  COUNT(*) AS total_monitors,
+  COUNT(*) FILTER (WHERE is_active = true) AS active_monitors
+FROM monitors
+WHERE user_id = $1;

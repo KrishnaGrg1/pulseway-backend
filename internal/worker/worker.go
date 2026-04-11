@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/KrishnaGrg1/pulseway/internal/alert"
 	db "github.com/KrishnaGrg1/pulseway/internal/db/sqlc"
 	"github.com/KrishnaGrg1/pulseway/internal/queue"
+	"github.com/KrishnaGrg1/pulseway/internal/sse"
 	"github.com/KrishnaGrg1/pulseway/internal/store"
 	"github.com/jackc/pgx/v5/pgtype"
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -17,13 +19,17 @@ import (
 type Worker struct {
 	store      *store.Store
 	queue      *queue.Queue
+	hub        *sse.Hub
+	alerter    *alert.EmailAlerter
 	httpClient *http.Client
 }
 
-func New(s *store.Store, q *queue.Queue) *Worker {
+func New(s *store.Store, q *queue.Queue, hub *sse.Hub, alerter *alert.EmailAlerter) *Worker {
 	return &Worker{
-		store: s,
-		queue: q,
+		store:   s,
+		queue:   q,
+		hub:     hub,
+		alerter: alerter,
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
 		},
@@ -112,36 +118,70 @@ func (w *Worker) processJob(ctx context.Context, d amqp.Delivery) {
 	} else {
 		w.handleUp(ctx, job.MonitorID)
 	}
-
 	log.Printf("Worker: monitor %d is %s (%dms)", job.MonitorID, status, latency)
 
 	// Acknowledge — tell RabbitMQ job is done
 	d.Ack(false)
+	// Publish result to SSE hub via Redis
+	w.hub.Publish(ctx, map[string]any{
+		"monitor_id":  job.MonitorID,
+		"status":      status,
+		"latency_ms":  latency,
+		"status_code": statusCode,
+	})
 }
 
 func (w *Worker) handleDown(ctx context.Context, monitorID int64) {
-	// Check if incident already exists
 	_, err := w.store.Queries.GetActiveIncident(ctx, monitorID)
 	if err == nil {
 		return // incident already open
 	}
 
-	// Create new incident
+	// Create incident
 	_, err = w.store.Queries.CreateIncident(ctx, monitorID)
 	if err != nil {
 		log.Printf("Worker: failed to create incident: %v", err)
 		return
 	}
 
+	// Get monitor details
+	monitor, err := w.store.Queries.GetMonitorByID(ctx, monitorID)
+	if err != nil {
+		return
+	}
+
+	// Get user email
+	user, err := w.store.Queries.GetUserByID(ctx, monitor.UserID)
+	if err != nil {
+		return
+	}
+
+	// Send alert
+	go w.alerter.SendDownAlert(user.Email, monitor.Name, monitor.Url)
+
 	log.Printf("Worker: incident created for monitor %d", monitorID)
 }
 
 func (w *Worker) handleUp(ctx context.Context, monitorID int64) {
-	// Resolve any open incident
 	_, err := w.store.Queries.ResolveIncident(ctx, monitorID)
 	if err != nil {
-		return // no open incident, that's fine
+		return
 	}
+
+	// Get monitor details
+	monitor, err := w.store.Queries.GetMonitorByID(ctx, monitorID)
+	if err != nil {
+		return
+	}
+
+	// Get user email
+	user, err := w.store.Queries.GetUserByID(ctx, monitor.UserID)
+	if err != nil {
+		return
+	}
+
+	// Send recovery alert
+	go w.alerter.SendUpAlert(user.Email, monitor.Name, monitor.Url)
 
 	log.Printf("Worker: incident resolved for monitor %d", monitorID)
 }

@@ -78,6 +78,26 @@ func (q *Queries) GetMonitorByID(ctx context.Context, id int64) (Monitor, error)
 	return i, err
 }
 
+const getMonitorStats = `-- name: GetMonitorStats :one
+SELECT
+  COUNT(*) AS total_monitors,
+  COUNT(*) FILTER (WHERE is_active = true) AS active_monitors
+FROM monitors
+WHERE user_id = $1
+`
+
+type GetMonitorStatsRow struct {
+	TotalMonitors  int64 `json:"total_monitors"`
+	ActiveMonitors int64 `json:"active_monitors"`
+}
+
+func (q *Queries) GetMonitorStats(ctx context.Context, userID int64) (GetMonitorStatsRow, error) {
+	row := q.db.QueryRow(ctx, getMonitorStats, userID)
+	var i GetMonitorStatsRow
+	err := row.Scan(&i.TotalMonitors, &i.ActiveMonitors)
+	return i, err
+}
+
 const listAllActiveMonitors = `-- name: ListAllActiveMonitors :many
 SELECT id, user_id, name, url, interval_secs, is_active, created_at FROM monitors
 WHERE is_active = true
