@@ -18,6 +18,7 @@ jobs:
           host: ${{ secrets.DO_HOST }}
           username: root
           key: ${{ secrets.DO_SSH_KEY }}
+          passphrase: ${{ secrets.DO_SSH_PASSPHRASE }}
           script: |
             cd pulseway
             git pull origin main
