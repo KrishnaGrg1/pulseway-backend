@@ -1,4 +1,4 @@
-FROM golang:1.25-alpine AS BUILDER
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /app
 
@@ -7,14 +7,17 @@ RUN apk add --no-cache ca-certificates tzdata
 COPY go.mod go.sum ./
 RUN go mod download
 
-RUN CGO_ENABLED=0 go build -o pulseway ./cmd
+COPY . .
+
+RUN CGO_ENABLED=0 GOOS=linux go build -o pulseway ./cmd
+
 FROM alpine:latest
 
 WORKDIR /app
 
 RUN apk add --no-cache ca-certificates tzdata
 
-COPY --FROM=BUILDER /app/pulseway
+COPY --from=builder /app/pulseway .
 
 EXPOSE 8080
 
