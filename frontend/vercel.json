@@ -1,6 +1,16 @@
 {
   "buildCommand": "bun run build",
-  "outputDirectory": ".output",
   "installCommand": "bun install",
-  "framework": null
+  "framework": null,
+  "outputDirectory": "dist/client",
+  "routes": [
+    {
+      "src": "/assets/(.*)",
+      "dest": "/assets/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
 }
