@@ -17,7 +17,12 @@ import (
 func NewRouter(s *store.Store, cfg *config.Config, hub *sse.Hub) http.Handler {
 	r := chi.NewRouter()
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:3000", "http://localhost:5173", "https://yourdomain.com"},
+		AllowedOrigins: []string{
+			"http://localhost:3000",
+			"http://localhost:5173",
+			"https://pulseway.vercel.app",
+			"https://*.vercel.app",
+		},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
 		AllowCredentials: true,
