@@ -11,20 +11,28 @@ import (
 	"github.com/KrishnaGrg1/pulseway/internal/store"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 )
 
 func NewRouter(s *store.Store, cfg *config.Config, hub *sse.Hub) http.Handler {
 	r := chi.NewRouter()
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"http://localhost:3000", "http://localhost:5173", "https://yourdomain.com"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},
+		AllowCredentials: true,
+		MaxAge:           300,
+	}))
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		response.Success(w, http.StatusAccepted, "Health is good", nil)
 	})
-	r.Get("/sse", hub.ServeHTTP)
 	AuthHandler := handler.NewAuthHandler(s, cfg.JWT_SECRET)
 	MonitorHandler := handler.NewMonitorHandler(s)
 	statsHandler := handler.NewStatsHandler(s)
 	r.Route("/api/v1", func(r chi.Router) {
+		r.Get("/sse", hub.ServeHTTP)
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/register", AuthHandler.Register)
 			r.Post("/login", AuthHandler.Login)
