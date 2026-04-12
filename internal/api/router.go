@@ -20,8 +20,7 @@ func NewRouter(s *store.Store, cfg *config.Config, hub *sse.Hub) http.Handler {
 		AllowedOrigins: []string{
 			"http://localhost:3000",
 			"http://localhost:5173",
-			"https://pulseway.vercel.app",
-			"https://*.vercel.app",
+			cfg.FRONTEND_URL,
 		},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type"},

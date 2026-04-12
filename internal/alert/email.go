@@ -12,10 +12,10 @@ type EmailAlerter struct {
 	from   string
 }
 
-func NewEmailAlerter(apiKey string) *EmailAlerter {
+func NewEmailAlerter(apiKey string, resendEmail string) *EmailAlerter {
 	return &EmailAlerter{
 		client: resend.NewClient(apiKey),
-		from:   "LevelUp <support@melevelup.me>",
+		from:   resendEmail,
 	}
 }
 

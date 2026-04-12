@@ -57,7 +57,7 @@ func main() {
 
 	// Start SSE subscriber
 	go hub.Subscribe(ctx)
-	alerter := alert.NewEmailAlerter(cfg.RESEND_API_KEY)
+	alerter := alert.NewEmailAlerter(cfg.RESEND_API_KEY, cfg.RESEND_EMAIL_FROM)
 	// Pass hub to worker
 	w := worker.New(s, q, hub, alerter)
 	go w.Start(ctx, cfg.WORKER_COUNT)
