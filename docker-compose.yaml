@@ -32,6 +32,8 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy_data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: always
 
 volumes:
