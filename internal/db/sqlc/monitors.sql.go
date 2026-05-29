@@ -7,6 +7,8 @@ package db
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createMonitor = `-- name: CreateMonitor :one
@@ -81,20 +83,20 @@ func (q *Queries) GetMonitorByID(ctx context.Context, id int64) (Monitor, error)
 const getMonitorStats = `-- name: GetMonitorStats :one
 SELECT
   COUNT(*) AS total_monitors,
-  COUNT(*) FILTER (WHERE is_active = true) AS active_monitors
+  COUNT(*) FILTER (WHERE is_active = true) AS healthy_monitors
 FROM monitors
 WHERE user_id = $1
 `
 
 type GetMonitorStatsRow struct {
-	TotalMonitors  int64 `json:"total_monitors"`
-	ActiveMonitors int64 `json:"active_monitors"`
+	TotalMonitors   int64 `json:"total_monitors"`
+	HealthyMonitors int64 `json:"healthy_monitors"`
 }
 
 func (q *Queries) GetMonitorStats(ctx context.Context, userID int64) (GetMonitorStatsRow, error) {
 	row := q.db.QueryRow(ctx, getMonitorStats, userID)
 	var i GetMonitorStatsRow
-	err := row.Scan(&i.TotalMonitors, &i.ActiveMonitors)
+	err := row.Scan(&i.TotalMonitors, &i.HealthyMonitors)
 	return i, err
 }
 
@@ -154,6 +156,88 @@ func (q *Queries) ListMonitorsByUser(ctx context.Context, userID int64) ([]Monit
 			&i.IntervalSecs,
 			&i.IsActive,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMonitorsWithStats = `-- name: ListMonitorsWithStats :many
+SELECT
+  m.id,
+  m.user_id,
+  m.name,
+  m.url,
+  m.interval_secs,
+  m.is_active,
+  m.created_at,
+  COALESCE(latest.status, 'unknown') AS current_status,
+  COALESCE(stats.uptime_percentage, 0) AS uptime_percentage,
+  COALESCE(stats.avg_latency_ms, 0)::INT AS avg_latency_ms,
+  latest.checked_at AS last_checked_at,
+  latest.status AS last_check_status
+FROM monitors m
+LEFT JOIN LATERAL (
+  SELECT status, checked_at
+  FROM check_results
+  WHERE monitor_id = m.id
+  ORDER BY checked_at DESC
+  LIMIT 1
+) latest ON true
+LEFT JOIN LATERAL (
+  SELECT
+    COUNT(*) FILTER (WHERE status = 'up') * 100 / NULLIF(COUNT(*), 0) AS uptime_percentage,
+    AVG(latency_ms) AS avg_latency_ms
+  FROM check_results
+  WHERE monitor_id = m.id
+  AND checked_at > now() - INTERVAL '24 hours'
+) stats ON true
+WHERE m.user_id = $1 AND m.is_active = true
+ORDER BY m.created_at DESC
+`
+
+type ListMonitorsWithStatsRow struct {
+	ID               int64              `json:"id"`
+	UserID           int64              `json:"user_id"`
+	Name             string             `json:"name"`
+	Url              string             `json:"url"`
+	IntervalSecs     int32              `json:"interval_secs"`
+	IsActive         bool               `json:"is_active"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	CurrentStatus    string             `json:"current_status"`
+	UptimePercentage int32              `json:"uptime_percentage"`
+	AvgLatencyMs     int32              `json:"avg_latency_ms"`
+	LastCheckedAt    pgtype.Timestamptz `json:"last_checked_at"`
+	LastCheckStatus  string             `json:"last_check_status"`
+}
+
+func (q *Queries) ListMonitorsWithStats(ctx context.Context, userID int64) ([]ListMonitorsWithStatsRow, error) {
+	rows, err := q.db.Query(ctx, listMonitorsWithStats, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListMonitorsWithStatsRow
+	for rows.Next() {
+		var i ListMonitorsWithStatsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Name,
+			&i.Url,
+			&i.IntervalSecs,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.CurrentStatus,
+			&i.UptimePercentage,
+			&i.AvgLatencyMs,
+			&i.LastCheckedAt,
+			&i.LastCheckStatus,
 		); err != nil {
 			return nil, err
 		}

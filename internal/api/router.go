@@ -59,7 +59,10 @@ func NewRouter(s *store.Store, cfg *config.Config, hub *sse.Hub) http.Handler {
 
 				response.Success(w, http.StatusAccepted, "Retrieved user data successfully", user)
 			})
-			r.Get("/dashboard/stats", statsHandler.Get)
+			r.Route("/dashboard", func(r chi.Router) {
+				r.Get("/stats", statsHandler.Get)
+				r.Get("/metrics-history", statsHandler.GetMetricsHistory)
+			})
 			r.Route("/monitors", func(r chi.Router) {
 				r.Post("/", MonitorHandler.CreateMonitor)
 				r.Get("/", MonitorHandler.List)
@@ -67,6 +70,7 @@ func NewRouter(s *store.Store, cfg *config.Config, hub *sse.Hub) http.Handler {
 				r.Put("/{id}", MonitorHandler.Update)
 				r.Delete("/{id}", MonitorHandler.Delete)
 				r.Get("/{id}/results", MonitorHandler.GetResults)
+				r.Get("/{id}/check-history", MonitorHandler.GetCheckHistory)
 			})
 		})
 	})

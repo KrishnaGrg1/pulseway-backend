@@ -17,7 +17,11 @@ type Querier interface {
 	DeleteAlert(ctx context.Context, arg DeleteAlertParams) error
 	DeleteMonitor(ctx context.Context, arg DeleteMonitorParams) error
 	GetActiveIncident(ctx context.Context, monitorID int64) (Incident, error)
+	GetCheckHistory(ctx context.Context, arg GetCheckHistoryParams) ([]GetCheckHistoryRow, error)
+	GetLastCheckStatus(ctx context.Context, monitorID int64) (GetLastCheckStatusRow, error)
+	GetMetricsHistory(ctx context.Context, arg GetMetricsHistoryParams) ([]GetMetricsHistoryRow, error)
 	GetMonitorByID(ctx context.Context, id int64) (Monitor, error)
+	GetMonitorCurrentStatus(ctx context.Context, monitorID int64) (GetMonitorCurrentStatusRow, error)
 	GetMonitorStats(ctx context.Context, userID int64) (GetMonitorStatsRow, error)
 	GetStatsForUser(ctx context.Context, userID int64) (GetStatsForUserRow, error)
 	GetUptimePercentage(ctx context.Context, monitorID int64) (int32, error)
@@ -28,6 +32,7 @@ type Querier interface {
 	ListCheckResultsByMonitor(ctx context.Context, monitorID int64) ([]CheckResult, error)
 	ListIncidentsByMonitor(ctx context.Context, monitorID int64) ([]Incident, error)
 	ListMonitorsByUser(ctx context.Context, userID int64) ([]Monitor, error)
+	ListMonitorsWithStats(ctx context.Context, userID int64) ([]ListMonitorsWithStatsRow, error)
 	MarkIncidentNotified(ctx context.Context, monitorID int64) error
 	ResolveIncident(ctx context.Context, monitorID int64) (Incident, error)
 	UpdateMonitor(ctx context.Context, arg UpdateMonitorParams) (Monitor, error)

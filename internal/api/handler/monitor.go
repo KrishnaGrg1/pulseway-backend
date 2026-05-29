@@ -64,12 +64,12 @@ func (h *MonitorHandler) List(w http.ResponseWriter, r *http.Request) {
 	if err := h.GetUserByIDCheck(w, r, userId); err != nil {
 		return
 	}
-	monitor, err := h.store.Queries.ListMonitorsByUser(r.Context(), userId)
+	monitors, err := h.store.Queries.ListMonitorsWithStats(r.Context(), userId)
 	if err != nil {
 		response.Error(w, http.StatusInternalServerError, "Server issue", "INTERNAL_001", "Failed to fetch data")
 		return
 	}
-	response.Success(w, http.StatusAccepted, "Successfully retreived monitors of user", monitor)
+	response.Success(w, http.StatusOK, "Successfully retrieved monitors of user", monitors)
 }
 
 func (h *MonitorHandler) Get(w http.ResponseWriter, r *http.Request) {
@@ -179,6 +179,42 @@ func (h *MonitorHandler) GetResults(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	response.Success(w, http.StatusAccepted, "Successfully retrieved monitor results", results)
+}
+
+func (h *MonitorHandler) GetCheckHistory(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value(mw.UserIDKey).(int64)
+	if err := h.GetUserByIDCheck(w, r, userID); err != nil {
+		return
+	}
+
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		response.Error(w, http.StatusBadRequest, "Invalid request", "VALIDATION_003", "Invalid monitor id")
+		return
+	}
+
+	limitStr := r.URL.Query().Get("limit")
+	limit := int32(30)
+	if limitStr != "" {
+		limitVal, err := strconv.ParseInt(limitStr, 10, 32)
+		if err == nil && limitVal > 0 {
+			limit = int32(limitVal)
+		}
+	}
+
+	checks, err := h.store.Queries.GetCheckHistory(r.Context(), db.GetCheckHistoryParams{
+		MonitorID: id,
+		Limit:     limit,
+	})
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, "Server error", "INTERNAL_001", "Failed to fetch check history")
+		return
+	}
+
+	response.Success(w, http.StatusOK, "Successfully retrieved check history", map[string]any{
+		"checks": checks,
+	})
 }
 
 func (h *MonitorHandler) GetUserByIDCheck(w http.ResponseWriter, r *http.Request, userId int64) error {
