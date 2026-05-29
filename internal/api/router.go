@@ -35,6 +35,8 @@ func NewRouter(s *store.Store, cfg *config.Config, hub *sse.Hub) http.Handler {
 	AuthHandler := handler.NewAuthHandler(s, cfg.JWT_SECRET)
 	MonitorHandler := handler.NewMonitorHandler(s)
 	statsHandler := handler.NewStatsHandler(s)
+	incidentHandler := handler.NewIncidentHandler(s)
+	alertHandler := handler.NewAlertHandler(s)
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/sse", hub.ServeHTTP)
 		r.Route("/auth", func(r chi.Router) {
@@ -71,6 +73,17 @@ func NewRouter(s *store.Store, cfg *config.Config, hub *sse.Hub) http.Handler {
 				r.Delete("/{id}", MonitorHandler.Delete)
 				r.Get("/{id}/results", MonitorHandler.GetResults)
 				r.Get("/{id}/check-history", MonitorHandler.GetCheckHistory)
+				r.Get("/{id}/details", MonitorHandler.GetDetails)
+				r.Get("/{id}/incidents", incidentHandler.ListIncidentsByMonitor)
+				r.Get("/{id}/alerts", alertHandler.ListAlertsByMonitor)
+			})
+			r.Route("/incidents", func(r chi.Router) {
+				r.Get("/", incidentHandler.ListAllIncidents)
+			})
+			r.Route("/alerts", func(r chi.Router) {
+				r.Get("/", alertHandler.ListAllAlerts)
+				r.Post("/", alertHandler.CreateAlert)
+				r.Delete("/{id}", alertHandler.DeleteAlert)
 			})
 		})
 	})

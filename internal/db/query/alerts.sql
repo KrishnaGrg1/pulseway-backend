@@ -7,6 +7,15 @@ RETURNING *;
 SELECT * FROM alerts
 WHERE monitor_id = $1;
 
+-- name: ListAllAlertsByUser :many
+SELECT a.* FROM alerts a
+JOIN monitors m ON a.monitor_id = m.id
+WHERE m.user_id = $1;
+
+-- name: GetAlert :one
+SELECT * FROM alerts
+WHERE id = $1;
+
 -- name: DeleteAlert :exec
 DELETE FROM alerts
-WHERE id = $1 AND monitor_id = $2;
+WHERE id = $1;

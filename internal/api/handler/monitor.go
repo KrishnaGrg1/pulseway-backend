@@ -217,6 +217,88 @@ func (h *MonitorHandler) GetCheckHistory(w http.ResponseWriter, r *http.Request)
 	})
 }
 
+func (h *MonitorHandler) GetDetails(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value(mw.UserIDKey).(int64)
+	if err := h.GetUserByIDCheck(w, r, userID); err != nil {
+		return
+	}
+
+	idStr := chi.URLParam(r, "id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		response.Error(w, http.StatusBadRequest, "Invalid request", "VALIDATION_003", "Invalid monitor id")
+		return
+	}
+
+	// Get monitor with stats
+	monitor, err := h.store.Queries.GetMonitorWithStats(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			response.Error(w, http.StatusNotFound, "Not found", "MONITOR_001", "Monitor not found")
+			return
+		}
+		response.Error(w, http.StatusInternalServerError, "Server error", "INTERNAL_001", "Failed to fetch monitor")
+		return
+	}
+
+	// Verify monitor belongs to user
+	if monitor.UserID != userID {
+		response.Error(w, http.StatusForbidden, "Forbidden", "AUTH_003", "Access denied to this monitor")
+		return
+	}
+
+	// Get incidents
+	incidents, err := h.store.Queries.ListIncidentsByMonitor(r.Context(), id)
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, "Server error", "INTERNAL_001", "Failed to fetch incidents")
+		return
+	}
+
+	// Transform incidents to include duration
+	type IncidentResponse struct {
+		ID              int64  `json:"id"`
+		MonitorID       int64  `json:"monitor_id"`
+		StartedAt       string `json:"started_at"`
+		ResolvedAt      string `json:"resolved_at,omitempty"`
+		Notified        bool   `json:"notified"`
+		DurationSeconds *int64 `json:"duration_seconds,omitempty"`
+	}
+
+	incidentResponses := make([]IncidentResponse, len(incidents))
+	for i, incident := range incidents {
+		incidentResponse := IncidentResponse{
+			ID:        incident.ID,
+			MonitorID: incident.MonitorID,
+			StartedAt: incident.StartedAt.Time.Format("2006-01-02T15:04:05Z07:00"),
+			Notified:  incident.Notified,
+		}
+
+		if incident.ResolvedAt.Valid {
+			incidentResponse.ResolvedAt = incident.ResolvedAt.Time.Format("2006-01-02T15:04:05Z07:00")
+			duration := int64(incident.ResolvedAt.Time.Sub(incident.StartedAt.Time).Seconds())
+			incidentResponse.DurationSeconds = &duration
+		}
+
+		incidentResponses[i] = incidentResponse
+	}
+
+	// Get recent checks (last 20)
+	recentChecks, err := h.store.Queries.GetCheckHistory(r.Context(), db.GetCheckHistoryParams{
+		MonitorID: id,
+		Limit:     20,
+	})
+	if err != nil {
+		response.Error(w, http.StatusInternalServerError, "Server error", "INTERNAL_001", "Failed to fetch recent checks")
+		return
+	}
+
+	response.Success(w, http.StatusOK, "Successfully retrieved monitor details", map[string]any{
+		"monitor":       monitor,
+		"incidents":     incidentResponses,
+		"recent_checks": recentChecks,
+	})
+}
+
 func (h *MonitorHandler) GetUserByIDCheck(w http.ResponseWriter, r *http.Request, userId int64) error {
 	_, err := h.store.Queries.GetUserByID(r.Context(), userId)
 	if err != nil {

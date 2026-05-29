@@ -67,3 +67,35 @@ LEFT JOIN LATERAL (
 ) stats ON true
 WHERE m.user_id = $1 AND m.is_active = true
 ORDER BY m.created_at DESC;
+
+-- name: GetMonitorWithStats :one
+SELECT
+  m.id,
+  m.user_id,
+  m.name,
+  m.url,
+  m.interval_secs,
+  m.is_active,
+  m.created_at,
+  COALESCE(latest.status, 'unknown') AS current_status,
+  COALESCE(stats.uptime_percentage, 0) AS uptime_percentage,
+  COALESCE(stats.avg_latency_ms, 0)::INT AS avg_latency_ms,
+  latest.checked_at AS last_checked_at,
+  latest.status AS last_check_status
+FROM monitors m
+LEFT JOIN LATERAL (
+  SELECT status, checked_at
+  FROM check_results
+  WHERE monitor_id = m.id
+  ORDER BY checked_at DESC
+  LIMIT 1
+) latest ON true
+LEFT JOIN LATERAL (
+  SELECT
+    COUNT(*) FILTER (WHERE status = 'up') * 100 / NULLIF(COUNT(*), 0) AS uptime_percentage,
+    AVG(latency_ms) AS avg_latency_ms
+  FROM check_results
+  WHERE monitor_id = m.id
+  AND checked_at > now() - INTERVAL '24 hours'
+) stats ON true
+WHERE m.id = $1 AND m.is_active = true;

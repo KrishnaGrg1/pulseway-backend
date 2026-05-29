@@ -36,17 +36,30 @@ func (q *Queries) CreateAlert(ctx context.Context, arg CreateAlertParams) (Alert
 
 const deleteAlert = `-- name: DeleteAlert :exec
 DELETE FROM alerts
-WHERE id = $1 AND monitor_id = $2
+WHERE id = $1
 `
 
-type DeleteAlertParams struct {
-	ID        int64 `json:"id"`
-	MonitorID int64 `json:"monitor_id"`
+func (q *Queries) DeleteAlert(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, deleteAlert, id)
+	return err
 }
 
-func (q *Queries) DeleteAlert(ctx context.Context, arg DeleteAlertParams) error {
-	_, err := q.db.Exec(ctx, deleteAlert, arg.ID, arg.MonitorID)
-	return err
+const getAlert = `-- name: GetAlert :one
+SELECT id, monitor_id, type, destination, created_at FROM alerts
+WHERE id = $1
+`
+
+func (q *Queries) GetAlert(ctx context.Context, id int64) (Alert, error) {
+	row := q.db.QueryRow(ctx, getAlert, id)
+	var i Alert
+	err := row.Scan(
+		&i.ID,
+		&i.MonitorID,
+		&i.Type,
+		&i.Destination,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
 const listAlertsByMonitor = `-- name: ListAlertsByMonitor :many
@@ -56,6 +69,38 @@ WHERE monitor_id = $1
 
 func (q *Queries) ListAlertsByMonitor(ctx context.Context, monitorID int64) ([]Alert, error) {
 	rows, err := q.db.Query(ctx, listAlertsByMonitor, monitorID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Alert
+	for rows.Next() {
+		var i Alert
+		if err := rows.Scan(
+			&i.ID,
+			&i.MonitorID,
+			&i.Type,
+			&i.Destination,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAllAlertsByUser = `-- name: ListAllAlertsByUser :many
+SELECT a.id, a.monitor_id, a.type, a.destination, a.created_at FROM alerts a
+JOIN monitors m ON a.monitor_id = m.id
+WHERE m.user_id = $1
+`
+
+func (q *Queries) ListAllAlertsByUser(ctx context.Context, userID int64) ([]Alert, error) {
+	rows, err := q.db.Query(ctx, listAllAlertsByUser, userID)
 	if err != nil {
 		return nil, err
 	}

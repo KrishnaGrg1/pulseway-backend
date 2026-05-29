@@ -100,6 +100,74 @@ func (q *Queries) GetMonitorStats(ctx context.Context, userID int64) (GetMonitor
 	return i, err
 }
 
+const getMonitorWithStats = `-- name: GetMonitorWithStats :one
+SELECT
+  m.id,
+  m.user_id,
+  m.name,
+  m.url,
+  m.interval_secs,
+  m.is_active,
+  m.created_at,
+  COALESCE(latest.status, 'unknown') AS current_status,
+  COALESCE(stats.uptime_percentage, 0) AS uptime_percentage,
+  COALESCE(stats.avg_latency_ms, 0)::INT AS avg_latency_ms,
+  latest.checked_at AS last_checked_at,
+  latest.status AS last_check_status
+FROM monitors m
+LEFT JOIN LATERAL (
+  SELECT status, checked_at
+  FROM check_results
+  WHERE monitor_id = m.id
+  ORDER BY checked_at DESC
+  LIMIT 1
+) latest ON true
+LEFT JOIN LATERAL (
+  SELECT
+    COUNT(*) FILTER (WHERE status = 'up') * 100 / NULLIF(COUNT(*), 0) AS uptime_percentage,
+    AVG(latency_ms) AS avg_latency_ms
+  FROM check_results
+  WHERE monitor_id = m.id
+  AND checked_at > now() - INTERVAL '24 hours'
+) stats ON true
+WHERE m.id = $1 AND m.is_active = true
+`
+
+type GetMonitorWithStatsRow struct {
+	ID               int64              `json:"id"`
+	UserID           int64              `json:"user_id"`
+	Name             string             `json:"name"`
+	Url              string             `json:"url"`
+	IntervalSecs     int32              `json:"interval_secs"`
+	IsActive         bool               `json:"is_active"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	CurrentStatus    string             `json:"current_status"`
+	UptimePercentage int32              `json:"uptime_percentage"`
+	AvgLatencyMs     int32              `json:"avg_latency_ms"`
+	LastCheckedAt    pgtype.Timestamptz `json:"last_checked_at"`
+	LastCheckStatus  string             `json:"last_check_status"`
+}
+
+func (q *Queries) GetMonitorWithStats(ctx context.Context, id int64) (GetMonitorWithStatsRow, error) {
+	row := q.db.QueryRow(ctx, getMonitorWithStats, id)
+	var i GetMonitorWithStatsRow
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Url,
+		&i.IntervalSecs,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.CurrentStatus,
+		&i.UptimePercentage,
+		&i.AvgLatencyMs,
+		&i.LastCheckedAt,
+		&i.LastCheckStatus,
+	)
+	return i, err
+}
+
 const listAllActiveMonitors = `-- name: ListAllActiveMonitors :many
 SELECT id, user_id, name, url, interval_secs, is_active, created_at FROM monitors
 WHERE is_active = true

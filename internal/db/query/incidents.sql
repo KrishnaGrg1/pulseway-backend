@@ -21,6 +21,11 @@ SELECT * FROM incidents
 WHERE monitor_id = $1
 ORDER BY started_at DESC;
 
+-- name: ListAllIncidentsByUser :many
+SELECT i.* FROM incidents i
+JOIN monitors m ON i.monitor_id = m.id
+WHERE m.user_id = $1
+ORDER BY i.started_at DESC;
 
 -- name: MarkIncidentNotified :exec
 UPDATE incidents

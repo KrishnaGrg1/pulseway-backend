@@ -48,6 +48,39 @@ func (q *Queries) GetActiveIncident(ctx context.Context, monitorID int64) (Incid
 	return i, err
 }
 
+const listAllIncidentsByUser = `-- name: ListAllIncidentsByUser :many
+SELECT i.id, i.monitor_id, i.started_at, i.resolved_at, i.notified FROM incidents i
+JOIN monitors m ON i.monitor_id = m.id
+WHERE m.user_id = $1
+ORDER BY i.started_at DESC
+`
+
+func (q *Queries) ListAllIncidentsByUser(ctx context.Context, userID int64) ([]Incident, error) {
+	rows, err := q.db.Query(ctx, listAllIncidentsByUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Incident
+	for rows.Next() {
+		var i Incident
+		if err := rows.Scan(
+			&i.ID,
+			&i.MonitorID,
+			&i.StartedAt,
+			&i.ResolvedAt,
+			&i.Notified,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listIncidentsByMonitor = `-- name: ListIncidentsByMonitor :many
 SELECT id, monitor_id, started_at, resolved_at, notified FROM incidents
 WHERE monitor_id = $1
